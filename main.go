@@ -64,6 +64,20 @@ func (s *KVStore[K, V]) Get(key K) (V, error) {
 	return value, nil
 }
 
+func (s *KVStore[K, V]) Delete(key K) (V, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	value, ok := s.data[key]
+	if !ok {
+		return value, fmt.Errorf("the key (%v) does not exists", key)
+	}
+
+	delete(s.data, key)
+
+	return value, nil
+}
+
 type Server struct {
 	Store Storer[string, string]
 }
@@ -77,6 +91,10 @@ func (s *Server) getUserByName(name string) (string, error) {
 // type Transaction struct{}
 
 func main() {
+	s := Server{
+		Store: NewKVStore[string, string](),
+	}
+
 	store := NewKVStore[string, string]()
 
 	if err := store.Put("foo", "bar"); err != nil {
