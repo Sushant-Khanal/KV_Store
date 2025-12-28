@@ -2,8 +2,10 @@ package main
 
 import (
 	"fmt"
-	"log"
+	"net/http"
 	"sync"
+
+	"github.com/labstack/echo/v4"
 )
 
 type Storer[K comparable, V any] interface {
@@ -79,44 +81,51 @@ func (s *KVStore[K, V]) Delete(key K) (V, error) {
 }
 
 type Server struct {
-	Store Storer[string, string]
+	Storage    Storer[string, string]
+	ListenAddr string
 }
 
-func (s *Server) getUserByName(name string) (string, error) {
-	return s.Store.Get(name)
+func NewServer(listenAddr string) *Server {
+	return &Server{
+		Storage:    NewKVStore[string, string](),
+		ListenAddr: listenAddr,
+	}
 
 }
 
-// type Block struct{}
-// type Transaction struct{}
+func (s *Server) handlePut(c echo.Context) error {
+	key := c.Param("key")
+	value := c.Param("value")
+
+	s.Storage.Put(key, value)
+
+	return c.JSON(http.StatusOK, map[string]string{"msg": "ok"})
+}
+
+func (s *Server) handleGet(c echo.Context) error {
+	key := c.Param("key")
+	value, err := s.Storage.Get(key)
+
+	if err != nil {
+		return err
+	}
+
+	return c.JSON(http.StatusOK, map[string]string{"value": value})
+}
+
+func (s *Server) Start() {
+	fmt.Printf("The HTTP server is running on port %s", s.ListenAddr)
+
+	e := echo.New()
+
+	e.GET("/put/:key/:value", s.handlePut)
+	e.GET("/get/:key", s.handleGet)
+
+	e.Start(s.ListenAddr)
+
+}
 
 func main() {
-	s := Server{
-		Store: NewKVStore[string, string](),
-	}
-
-	store := NewKVStore[string, string]()
-
-	if err := store.Put("foo", "bar"); err != nil {
-		log.Fatal(err)
-	}
-
-	value, err := store.Get("foo")
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	fmt.Println(value)
-
-	if err := store.Put("foo", "oof"); err != nil {
-		log.Fatal(err)
-	}
-	value, err = store.Get("foo")
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	fmt.Println(value)
-
-	//StoreThings(kv)
+	s := NewServer(":3000")
+	s.Start()
 }
